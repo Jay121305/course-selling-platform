@@ -90,7 +90,7 @@ const MyLearningPage = () => {
                 <div style={{ marginTop: "0.8rem" }}>
                   <div className="row-between" style={{ marginBottom: "0.3rem" }}>
                     <span className="muted" style={{ fontSize: "0.82rem" }}>Progress</span>
-                    <span style={{ fontWeight: 700, color: "var(--accent-hover)", fontSize: "0.9rem" }}>
+                    <span style={{ fontWeight: 700, color: "var(--accent-dark)", fontSize: "0.9rem" }}>
                       {percent}%
                     </span>
                   </div>
@@ -101,7 +101,7 @@ const MyLearningPage = () => {
 
                 <div className="card-footer">
                   <Link className="btn btn-primary btn-sm" to={`/courses/${enrollment.course._id}`}>
-                    {isCompleted ? "Review Course" : "Continue Learning"}
+                    {isCompleted ? "Review Course" : "Continue Learning →"}
                   </Link>
                 </div>
               </div>

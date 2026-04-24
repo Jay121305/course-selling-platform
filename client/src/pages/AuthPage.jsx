@@ -95,8 +95,8 @@ const AuthPage = ({ mode }) => {
               value={form.role}
               onChange={(event) => onChange("role", event.target.value)}
             >
-              <option value="student">🎓 Student</option>
-              <option value="educator">📚 Educator</option>
+              <option value="student">Student</option>
+              <option value="educator">Educator</option>
             </select>
           </label>
         )}
@@ -109,11 +109,11 @@ const AuthPage = ({ mode }) => {
         </button>
       </form>
 
-      <p className="muted" style={{ textAlign: "center", marginTop: "1.2rem", fontSize: "0.88rem" }}>
+      <p className="muted" style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.88rem" }}>
         {isLogin ? (
-          <>Don't have an account? <Link to="/register" style={{ color: "var(--accent-hover)", fontWeight: 600 }}>Register</Link></>
+          <>Don't have an account? <Link to="/register" style={{ color: "var(--accent-dark)", fontWeight: 600 }}>Register</Link></>
         ) : (
-          <>Already have an account? <Link to="/login" style={{ color: "var(--accent-hover)", fontWeight: 600 }}>Sign In</Link></>
+          <>Already have an account? <Link to="/login" style={{ color: "var(--accent-dark)", fontWeight: 600 }}>Sign In</Link></>
         )}
       </p>
     </section>

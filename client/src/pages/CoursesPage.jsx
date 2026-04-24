@@ -48,7 +48,7 @@ const CoursesPage = () => {
 
   return (
     <section>
-      <div className="row-between wrap" style={{ marginBottom: "1rem" }}>
+      <div className="row-between wrap" style={{ marginBottom: "1.2rem" }}>
         <div>
           <h2>Explore Courses</h2>
           <p className="muted" style={{ fontSize: "0.9rem" }}>
@@ -68,7 +68,7 @@ const CoursesPage = () => {
         </form>
       </div>
 
-      <div className="row-gap" style={{ marginBottom: "0.5rem" }}>
+      <div className="row-gap" style={{ marginBottom: "0.8rem" }}>
         {CATEGORIES.map((cat) => (
           <button
             key={cat}

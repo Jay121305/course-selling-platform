@@ -14,7 +14,7 @@ const Navbar = () => {
   return (
     <header className="topbar">
       <Link to="/" className="brand">
-        ◆ EduLaunch
+        EduLaunch
       </Link>
       <nav className="nav-links">
         <NavLink to="/courses">Courses</NavLink>

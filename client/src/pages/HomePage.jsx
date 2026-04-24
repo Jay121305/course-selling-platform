@@ -4,10 +4,8 @@ const HomePage = () => {
   return (
     <>
       <section className="hero">
-        <div className="hero-bg" />
         <div className="hero-content">
-          <span className="label">🚀 Launch Your Learning Brand</span>
-          <h1>Build, Teach &amp; Monetize Your Expertise Online</h1>
+          <h1>Build, Teach & Monetize Your Expertise Online</h1>
           <p className="hero-subtitle">
             EduLaunch empowers independent educators to create personalised course
             platforms with video lessons, real payment integration, student tracking,

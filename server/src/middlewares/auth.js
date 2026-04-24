@@ -31,6 +31,32 @@ const protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const optionalProtect = asyncHandler(async (req, res, next) => {
+  const authHeader = req.headers.authorization || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET || "dev_jwt_secret");
+  } catch {
+    // Ignore invalid tokens here so public endpoints can still work.
+    return next();
+  }
+
+  const user = await User.findById(decoded.id).select("-password");
+  if (!user) {
+    return next();
+  }
+
+  req.user = user;
+  next();
+});
+
 const requireRole = (...roles) => (req, res, next) => {
   if (!req.user || !roles.includes(req.user.role)) {
     const error = new Error("Forbidden for this role");
@@ -43,5 +69,6 @@ const requireRole = (...roles) => (req, res, next) => {
 
 module.exports = {
   protect,
+  optionalProtect,
   requireRole
 };

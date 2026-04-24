@@ -70,20 +70,21 @@ const AdminDashboardPage = () => {
 
   const getRoleBadge = (role) => {
     const colors = {
-      admin: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
-      educator: { bg: "rgba(99, 102, 241, 0.15)", color: "#818cf8" },
-      student: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" }
+      admin: { bg: "rgba(239, 68, 68, 0.08)", color: "#dc2626" },
+      educator: { bg: "var(--gold-100)", color: "var(--gold-700)" },
+      student: { bg: "rgba(34, 197, 94, 0.08)", color: "#16a34a" }
     };
     const c = colors[role] || colors.student;
     return (
       <span style={{
-        padding: "0.15rem 0.5rem",
+        padding: "0.18rem 0.55rem",
         borderRadius: "var(--radius-full)",
         fontSize: "0.72rem",
         fontWeight: 700,
         textTransform: "uppercase",
         background: c.bg,
-        color: c.color
+        color: c.color,
+        letterSpacing: "0.04em"
       }}>
         {role}
       </span>

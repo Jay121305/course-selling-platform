@@ -1,4 +1,5 @@
 const Course = require("../models/Course");
+const Enrollment = require("../models/Enrollment");
 const asyncHandler = require("../middlewares/asyncHandler");
 const { isYouTubeUrl } = require("../utils/youtube");
 
@@ -33,6 +34,68 @@ const normalizeChapters = (chapters) => {
       summary: String(chapter?.summary || "").trim()
     };
   });
+};
+
+const mapCourseWithAccess = async (course, user) => {
+  const previewChapterLimit = 1;
+  let hasFullAccess = false;
+
+  if (user) {
+    const educatorId = course.educator?._id
+      ? course.educator._id.toString()
+      : course.educator?.toString();
+    const isOwner =
+      user.role === "educator" && educatorId === user._id.toString();
+    const isAdmin = user.role === "admin";
+
+    if (isOwner || isAdmin) {
+      hasFullAccess = true;
+    } else if (user.role === "student") {
+      const enrollment = await Enrollment.findOne({
+        student: user._id,
+        course: course._id
+      }).select("_id");
+      hasFullAccess = Boolean(enrollment);
+    }
+  }
+
+  const courseObject = course.toObject();
+  const totalChapters = courseObject.chapters.length;
+  const previewChapterCount = hasFullAccess
+    ? totalChapters
+    : totalChapters > 1
+    ? Math.min(previewChapterLimit, totalChapters)
+    : 0;
+
+  const chapters = courseObject.chapters.map((chapter, index) => {
+    if (hasFullAccess || index < previewChapterCount) {
+      return {
+        ...chapter,
+        isLocked: false,
+        isPreview: !hasFullAccess
+      };
+    }
+
+    return {
+      ...chapter,
+      youtubeUrl: "",
+      isLocked: true,
+      isPreview: false
+    };
+  });
+
+  return {
+    ...courseObject,
+    chapters,
+    access: {
+      hasFullAccess,
+      previewChapterCount,
+      lockedChapterCount: Math.max(
+        totalChapters - previewChapterCount,
+        0
+      )
+    }
+  };
 };
 
 const createCourse = asyncHandler(async (req, res) => {
@@ -85,6 +148,7 @@ const listCourses = asyncHandler(async (req, res) => {
     : {};
 
   const courses = await Course.find(filter)
+    .select("-chapters.youtubeUrl")
     .populate("educator", "name")
     .sort({ createdAt: -1 });
 
@@ -99,7 +163,9 @@ const getCourseById = asyncHandler(async (req, res) => {
     throw new Error("Course not found");
   }
 
-  res.json({ course });
+  const courseWithAccess = await mapCourseWithAccess(course, req.user);
+
+  res.json({ course: courseWithAccess });
 });
 
 const getMyCourses = asyncHandler(async (req, res) => {

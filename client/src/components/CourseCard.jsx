@@ -42,7 +42,7 @@ const CourseCard = ({ course, layout = "grid" }) => {
         <div className="card-footer">
           <strong>₹{Number(course.price).toFixed(0)}</strong>
           <Link to={`/courses/${course._id}`} className="btn btn-primary btn-sm">
-            View Course →
+            Preview / View →
           </Link>
         </div>
       </div>

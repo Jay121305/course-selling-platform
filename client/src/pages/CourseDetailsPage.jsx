@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -37,9 +37,52 @@ const CourseDetailsPage = () => {
   const [paying, setPaying] = useState(false);
 
   const isStudent = user?.role === "student";
+  const isAdmin = user?.role === "admin";
   const userId = user?.id || user?._id;
-  const isOwner = user?.role === "educator" && course?.educator?._id === userId;
-  const canAccessCourseContent = Boolean(enrollment || isOwner);
+  const isOwner =
+    user?.role === "educator" &&
+    String(course?.educator?._id || course?.educator || "") === String(userId || "");
+  const chapterCount = course?.chapters?.length || 0;
+  const canAccessCourseContent = Boolean(
+    course?.access?.hasFullAccess || enrollment || isOwner || isAdmin
+  );
+
+  const previewChapterCount = useMemo(() => {
+    if (!chapterCount) return 0;
+    if (canAccessCourseContent) return chapterCount;
+
+    const apiPreviewCount = Number(course?.access?.previewChapterCount);
+    if (!Number.isNaN(apiPreviewCount)) {
+      return Math.max(0, Math.min(apiPreviewCount, chapterCount));
+    }
+
+    // Fallback preview rule when API metadata is stale/missing.
+    return Math.min(1, chapterCount);
+  }, [course, chapterCount, canAccessCourseContent]);
+
+  const chaptersForView = useMemo(() => {
+    if (!course?.chapters?.length) return [];
+
+    return course.chapters.map((chapter, index) => {
+      if (canAccessCourseContent) {
+        return {
+          ...chapter,
+          isLocked: false,
+          isPreview: false
+        };
+      }
+
+      const isFallbackLocked = index >= previewChapterCount;
+      return {
+        ...chapter,
+        isLocked: Boolean(chapter.isLocked || isFallbackLocked),
+        isPreview: !isFallbackLocked
+      };
+    });
+  }, [course, canAccessCourseContent, previewChapterCount]);
+
+  const lockedChapterCount = Math.max(chapterCount - previewChapterCount, 0);
+  const shouldShowEnrollmentCta = !canAccessCourseContent && isStudent;
 
   const loadCourse = async () => {
     setStatus("loading");
@@ -55,7 +98,10 @@ const CourseDetailsPage = () => {
   };
 
   const loadEnrollment = async () => {
-    if (!isAuthenticated || !isStudent) return;
+    if (!isAuthenticated || !isStudent) {
+      setEnrollment(null);
+      return;
+    }
     try {
       const response = await api.get(`/enrollments/course/${id}`);
       setEnrollment(response.data.enrollment);
@@ -83,9 +129,13 @@ const CourseDetailsPage = () => {
   }, [id, isAuthenticated, isStudent]);
 
   const selectedChapterData = useMemo(() => {
-    if (!course?.chapters?.length) return null;
-    return course.chapters[selectedChapter] || course.chapters[0];
-  }, [course, selectedChapter]);
+    if (!chaptersForView.length) return null;
+    return chaptersForView[selectedChapter] || chaptersForView[0];
+  }, [chaptersForView, selectedChapter]);
+
+  const isSelectedChapterLocked = Boolean(
+    selectedChapterData?.isLocked && !canAccessCourseContent
+  );
 
   const completedIndexes = enrollment?.progress?.completedChapterIndexes || [];
 
@@ -94,6 +144,10 @@ const CourseDetailsPage = () => {
     setError("");
     setPaying(true);
     try {
+      if (!window.Razorpay) {
+        throw new Error("Razorpay checkout SDK failed to load. Please refresh and try again.");
+      }
+
       const response = await api.post("/enrollments/razorpay/order", { courseId: id });
       const { order, razorpayKeyId } = response.data;
 
@@ -112,7 +166,7 @@ const CourseDetailsPage = () => {
               razorpay_signature: paymentResponse.razorpay_signature,
               courseId: id
             });
-            await loadEnrollment();
+            await Promise.all([loadEnrollment(), loadCourse()]);
           } catch (verifyError) {
             setError(verifyError.response?.data?.message || "Payment verification failed");
           }
@@ -121,7 +175,7 @@ const CourseDetailsPage = () => {
           name: user?.name || "",
           email: user?.email || ""
         },
-        theme: { color: "#6366f1" }
+        theme: { color: "#f5a623" }
       };
 
       const rzp = new window.Razorpay(options);
@@ -143,7 +197,7 @@ const CourseDetailsPage = () => {
     try {
       await api.post("/enrollments/mock-payment/intent", { courseId: id });
       await api.post("/enrollments/mock-payment/confirm", { courseId: id });
-      await loadEnrollment();
+      await Promise.all([loadEnrollment(), loadCourse()]);
     } catch (apiError) {
       setError(apiError.response?.data?.message || "Mock payment failed");
     } finally {
@@ -177,7 +231,7 @@ const CourseDetailsPage = () => {
 
   if (status === "loading") {
     return (
-      <div style={{ display: "grid", gap: "1rem" }}>
+      <div style={{ display: "grid", gap: "1.4rem" }}>
         <div className="skeleton" style={{ height: 200 }} />
         <div className="skeleton" style={{ height: 400 }} />
       </div>
@@ -203,9 +257,9 @@ const CourseDetailsPage = () => {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{
-              fontSize: "2rem",
+              fontSize: "2.2rem",
               fontWeight: 800,
-              background: "var(--accent-gradient)",
+              background: "var(--accent-gradient-bold)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent"
             }}>
@@ -219,13 +273,18 @@ const CourseDetailsPage = () => {
       </div>
 
       {/* Enrollment CTA */}
-      {!enrollment && isStudent && (
+      {shouldShowEnrollmentCta && (
         <div className="panel payment-panel">
-          <h3>🎯 Enroll in this Course</h3>
+          <h3>🎯 Unlock Full Course Access</h3>
           <p className="muted" style={{ fontSize: "0.9rem" }}>
             {paymentConfig?.razorpayConfigured
               ? "Secure checkout powered by Razorpay."
-              : "Demo mode — payment is simulated."}
+              : "Demo mode - payment is simulated."}
+          </p>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>
+            {previewChapterCount > 0
+              ? `Preview ${previewChapterCount} chapter${previewChapterCount === 1 ? "" : "s"} now and unlock ${lockedChapterCount} locked chapter${lockedChapterCount === 1 ? "" : "s"} after payment.`
+              : "This course has no free video previews. Complete payment to unlock all chapters."}
           </p>
           <div>
             <button
@@ -234,9 +293,43 @@ const CourseDetailsPage = () => {
               onClick={handleEnroll}
               disabled={paying}
             >
-              {paying ? "Processing..." : paymentConfig?.razorpayConfigured ? "💳 Pay with Razorpay" : "🧪 Enroll (Demo Payment)"}
+              {paying
+                ? "Processing..."
+                : paymentConfig?.razorpayConfigured
+                ? "💳 Pay & Unlock"
+                : "🧪 Unlock (Demo Payment)"}
             </button>
           </div>
+        </div>
+      )}
+
+      {!canAccessCourseContent && !isStudent && (
+        <div className="panel payment-panel">
+          <h3>🔐 Unlock This Course</h3>
+          {!isAuthenticated ? (
+            <>
+              <p className="muted" style={{ fontSize: "0.9rem" }}>
+                Sign in as a student to continue with payment and unlock full access.
+              </p>
+              <div>
+                <Link className="btn btn-primary" to="/login">
+                  Login as Student
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="muted" style={{ fontSize: "0.9rem" }}>
+              Only student accounts can purchase courses. Switch to a student account to continue.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!canAccessCourseContent && (
+        <div className="panel subtle">
+          <p>
+            You are in preview mode. Watch available preview chapters and complete payment to unlock the full course learning path.
+          </p>
         </div>
       )}
 
@@ -254,7 +347,7 @@ const CourseDetailsPage = () => {
         <div className="panel">
           <div className="row-between">
             <h3>📈 My Progress</h3>
-            <span style={{ fontWeight: 700, color: "var(--accent-hover)" }}>
+            <span style={{ fontWeight: 700, color: "var(--accent-dark)" }}>
               {enrollment.progress?.completedPercent || 0}%
             </span>
           </div>
@@ -277,17 +370,29 @@ const CourseDetailsPage = () => {
         <div className="panel">
           <h3 style={{ marginBottom: "0.8rem" }}>Chapters</h3>
           <div className="chapter-menu">
-            {course.chapters.map((chapter, index) => (
+            {chaptersForView.map((chapter, index) => (
               <div key={index} className="chapter-row">
                 <button
-                  className={`chapter-nav ${index === selectedChapter ? "active" : ""}`}
+                  className={`chapter-nav ${index === selectedChapter ? "active" : ""} ${chapter.isLocked && !canAccessCourseContent ? "locked" : ""}`}
                   type="button"
                   onClick={() => setSelectedChapter(index)}
                 >
-                  <span style={{ color: "var(--text-muted)", marginRight: "0.4rem" }}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  {chapter.title}
+                  <div className="row-between" style={{ width: "100%" }}>
+                    <span>
+                      <span style={{ color: "var(--text-muted)", marginRight: "0.4rem" }}>
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      {chapter.title}
+                    </span>
+                    {!canAccessCourseContent && chapter.isPreview && (
+                      <span className="label" style={{ fontSize: "0.62rem" }}>
+                        Preview
+                      </span>
+                    )}
+                    {!canAccessCourseContent && chapter.isLocked && (
+                      <span className="chapter-lock">Locked</span>
+                    )}
+                  </div>
                 </button>
                 {enrollment && (
                   <label className="checkbox-inline">
@@ -306,27 +411,58 @@ const CourseDetailsPage = () => {
         </div>
 
         <div className="panel">
-          {!canAccessCourseContent ? (
-            <div className="empty-state">
-              <div className="empty-icon">🔒</div>
-              <h3>Content Locked</h3>
-              <p>Enroll in this course to unlock chapter videos and progress tracking.</p>
-            </div>
-          ) : selectedChapterData ? (
+          {selectedChapterData ? (
+            isSelectedChapterLocked ? (
+              <div className="empty-state">
+                <div className="empty-icon">🔒</div>
+                <h3>Chapter Locked</h3>
+                <p>
+                  Complete payment to unlock this chapter and the rest of the full course content.
+                </p>
+                {shouldShowEnrollmentCta && (
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={handleEnroll}
+                    disabled={paying}
+                  >
+                    {paying ? "Processing..." : "Unlock Full Course"}
+                  </button>
+                )}
+              </div>
+            ) : (
             <>
-              <h3>{selectedChapterData.title}</h3>
+              <div className="row-between wrap" style={{ marginBottom: "0.3rem" }}>
+                <h3>{selectedChapterData.title}</h3>
+                {!canAccessCourseContent && selectedChapterData.isPreview && (
+                  <span className="label">Preview Lesson</span>
+                )}
+              </div>
               <p className="muted" style={{ marginBottom: "0.5rem" }}>
                 {selectedChapterData.summary || "No summary provided."}
               </p>
-              <div className="video-wrap">
-                <iframe
-                  src={extractEmbedUrl(selectedChapterData.youtubeUrl)}
-                  title={selectedChapterData.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
+              {selectedChapterData.youtubeUrl ? (
+                <div className="video-wrap">
+                  <iframe
+                    src={extractEmbedUrl(selectedChapterData.youtubeUrl)}
+                    title={selectedChapterData.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: "1.5rem" }}>
+                  <p>Video is not available for this chapter preview.</p>
+                </div>
+              )}
+
+              {!canAccessCourseContent && (
+                <p className="muted" style={{ marginTop: "0.7rem", fontSize: "0.85rem" }}>
+                  This is a free preview. Purchase this course to unlock all chapters and progress tracking.
+                </p>
+              )}
             </>
+            )
           ) : (
             <p className="muted">No chapters available.</p>
           )}
