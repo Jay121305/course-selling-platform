@@ -21,7 +21,7 @@ A full-stack platform where educators can register, create and manage courses, a
 - Reviews & Ratings system
 - Admin panel — manage users, courses, and view platform stats
 - Email notifications on registration and enrollment
-- Responsive dark-theme UI with glassmorphism design
+- Responsive, clean, and formal white and yellow UI theme
 
 ## Project Structure
 
